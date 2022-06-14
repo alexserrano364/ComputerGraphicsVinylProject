@@ -1,0 +1,23 @@
+{
+  "name": "computergraphicsvinylproject",
+  "version": "1.0.0",
+  "description": "Computer Graphics Feb-Jun 2022",
+  "main": "ComputerGraphicsVinylProject.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexserrano364/ComputerGraphicsVinylProject.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/alexserrano364/ComputerGraphicsVinylProject/issues"
+  },
+  "homepage": "https://github.com/alexserrano364/ComputerGraphicsVinylProject#readme",
+  "dependencies": {
+    "@nodelib/fs.stat": "^2.0.5"
+  }
+}
