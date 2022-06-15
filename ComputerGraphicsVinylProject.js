@@ -5,12 +5,15 @@ import { OrbitControls } from './libs/three.js/controls/OrbitControls.js';
 import { OBJLoader } from './libs/three.js/loaders/OBJLoader.js';
 import { MTLLoader } from './libs/three.js/loaders/MTLLoader.js';
 
-let renderer = null, scene = null, camera = null, orbitControls = null, objectList = [], group = null;
+let renderer = null, scene = null, camera = null, orbitControls = null, objectList = [], group = null, vinylGroup = null;
 
-let floorUrl = "../images/wood.jpg";
-let wallUrl = "../images/wall.jpg";
-let roofUrl = "../images/roof.jpg";
-let coffeeTableobjUrl = "../models.coffeeTable.obj"
+let raycaster = null, mouse = new THREE.Vector2(), intersected, clicked;
+
+let floorUrl = "../images/wood.jpg", wallUrl = "../images/wall.jpg", roofUrl = "../images/roof.jpg";
+let klaatuUrl = "../images/klaatu.jpg", deathfameURL = "../images/deathfame.png", joyURL = "../images/joy.png";
+let coffeeTableObjUrl = {obj: "../models/coffeeTable.obj"};
+let table1ObjMtlUrl = {obj: "../models/table1/table1.obj", mtl: "../models/table1/table1.mtl"}
+let recordPlayerObjMtlUrl = {obj: "../models/recordPlayer/record player.obj", mtl: "../models/recordPlayer/record player.mtl"}
 
 let duration = 10000; // ms
 let currentTime = Date.now();
@@ -23,8 +26,8 @@ function main()
 {
     const canvas = document.getElementById("webglcanvas");
 
-    canvas.width = document.body.clientWidth;
-    canvas.height = document.body.clientHeight;
+    canvas.width = document.body.clientWidth;           // Full Screen
+    canvas.height = document.body.clientHeight;         // 
 
     // create the scene
     createScene(canvas);
@@ -63,25 +66,25 @@ function update(){
     animate();
 }
 
-function createMaterialsPhong(MapURL, BumpMapURL, planetPhong, planetPhongTextured)
+function createMaterialsPhong(MapURL, BumpMapURL, objectPhong, objectPhongTextured)
 {
     
     textureMap = new THREE.TextureLoader().load(MapURL);
     bumpMap = new THREE.TextureLoader().load(BumpMapURL);
 
-    materials[planetPhong] = new THREE.MeshPhongMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
-    materials[planetPhongTextured] = new THREE.MeshPhongMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
+    materials[objectPhong] = new THREE.MeshPhongMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
+    materials[objectPhongTextured] = new THREE.MeshPhongMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
     
 }
 
-function createMaterialsBasic(MapURL, BumpMapURL, planetBasic, planetBasicTextured)
+function createMaterialsBasic(MapURL, BumpMapURL, objectBasic, objectBasicTextured)
 {
  
     textureMap = new THREE.TextureLoader().load(MapURL);
     bumpMap = new THREE.TextureLoader().load(BumpMapURL);
 
-    materials[planetBasic] = new THREE.MeshBasicMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
-    materials[planetBasicTextured] = new THREE.MeshBasicMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
+    materials[objectBasic] = new THREE.MeshBasicMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
+    materials[objectBasicTextured] = new THREE.MeshBasicMaterial({ map: textureMap, bumpMap: bumpMap, bumpScale: 0.18 });
 
 }
 
@@ -152,6 +155,167 @@ function createStructure(){
     group.add(mesh);
 }
 
+async function loadObjTable(objModelUrl, objectList)
+{
+    try
+    {
+        const object = await new OBJLoader().loadAsync(objModelUrl.obj, onProgress, onError);
+
+        let texture = objModelUrl.hasOwnProperty('normalMap') ? new THREE.TextureLoader().load(objModelUrl.map) : null;
+        let normalMap = objModelUrl.hasOwnProperty('normalMap') ? new THREE.TextureLoader().load(objModelUrl.normalMap) : null;
+        let specularMap = objModelUrl.hasOwnProperty('specularMap') ? new THREE.TextureLoader().load(objModelUrl.specularMap) : null;
+        
+        // object.traverse(function (child) 
+        // {
+            for(const child of object.children)
+            {
+                //     if (child.isMesh)
+                child.castShadow = true;
+                child.receiveShadow = true;
+                child.material.map = texture;
+                child.material.normalMap = normalMap;
+                child.material.specularMap = specularMap;
+            }
+        // });
+
+        object.scale.set(0.05, 0.06, 0.05);
+        object.position.z = 6.5;
+        object.position.y = -4;
+        object.position.x = 4.8;
+        object.rotation.y = -(Math.PI * 0.33);
+        object.name = "objObject";
+        
+        objectList.push(object);
+        scene.add(object);
+    }
+    catch (err) 
+    {
+        onError(err);
+    }
+}
+
+async function loadObjMtlTable(objModelUrl, objectList)
+{
+    try
+    {
+        const mtlLoader = new MTLLoader();
+
+        const materials = await mtlLoader.loadAsync(objModelUrl.mtl, onProgress, onError);
+
+        materials.preload();
+        
+        const objLoader = new OBJLoader();
+
+        objLoader.setMaterials(materials);
+
+        const object = await objLoader.loadAsync(objModelUrl.obj, onProgress, onError);
+    
+        object.traverse(function (child) {
+            if (child.isMesh)
+            {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+        
+        // console.log(object);
+
+        object.position.y -= 4;
+        object.position.x -= 3;
+        object.position.z -= 4;
+        object.scale.set(0.007, 0.004, 0.005);
+
+        objectList.push(object);
+        scene.add(object);
+    }
+    catch (err)
+    {
+        onError(err);
+    }
+}
+
+async function loadObjMtlRecordPlayer(objModelUrl, objectList)
+{
+    try
+    {
+        const mtlLoader = new MTLLoader();
+
+        const materials = await mtlLoader.loadAsync(objModelUrl.mtl, onProgress, onError);
+
+        materials.preload();
+        
+        const objLoader = new OBJLoader();
+
+        objLoader.setMaterials(materials);
+
+        const object = await objLoader.loadAsync(objModelUrl.obj, onProgress, onError);
+    
+        object.traverse(function (child) {
+            if (child.isMesh)
+            {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+        
+        // console.log(object);
+
+        object.position.y -= 4;
+        object.position.x += 5;
+        object.position.z -= 4;
+        object.scale.set(7.007, 7.004, 7.005);
+
+        objectList.push(object);
+        scene.add(object);
+    }
+    catch (err)
+    {
+        onError(err);
+    }
+}
+
+function createVinylMesh(albumUrl, z){
+
+    // Load album image
+    const album = new THREE.TextureLoader().load(albumUrl);
+
+    // Set up album geometry
+    let vinylGeometry = new THREE.PlaneGeometry(3, 3);
+    let vinylMesh = new THREE.Mesh(vinylGeometry, new THREE.MeshPhongMaterial( { map: album, side: THREE.DoubleSide, shininess: 100}));
+    vinylMesh.rotation.y = -Math.PI / 2;
+    vinylMesh.position.y = 2;                   // Add to wall
+    vinylMesh.position.x = 9.99;                //
+    vinylMesh.position.z = z;                   // Left to right on the wall
+    vinylMesh.receiveShadow = true;
+
+    return vinylMesh;
+}
+
+function onDocumentPointerMove(event) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(vinylGroup.children);
+
+    if (intersects.length > 0) {
+        if (intersected != intersects[0].object) {
+            if (intersected)
+                intersected.material.emissive.set(intersected.currentHex);
+
+            intersected = intersects[0].object;
+            intersected.currentHex = intersected.material.emissive.getHex();
+            intersected.material.emissive.set(0xff0000);
+        }
+    } else {
+        if (intersected)
+            intersected.material.emissive.set(intersected.currentHex);
+
+        intersected = null;
+    }
+}
+
 function createScene(canvas){
     
     // Renderer
@@ -185,11 +349,36 @@ function createScene(canvas){
     let light = new THREE.AmbientLight ( 0xffffff , 0.3);
     scene.add(light);
 
-    let pointLight = new THREE.PointLight( 0xe0ad42, 0.8, 0, 2);
+    // Luz del techo
+    let pointLight = new THREE.PointLight( 0xe0ad42, 0.8, 0, 2.5);
     pointLight.position.set(0, 5, 0);
     scene.add(pointLight);
 
+    // Objetos obj/mtl
+    loadObjTable(coffeeTableObjUrl, objectList);
+    loadObjMtlTable(table1ObjMtlUrl, objectList);
+    loadObjMtlRecordPlayer(recordPlayerObjMtlUrl, objectList);
+
+    // Se crea el cuarto
     createStructure();
+
+    // Grupo para los viniles
+    vinylGroup = new THREE.Object3D;
+
+    let klaatuMesh = createVinylMesh(klaatuUrl, -6);             // Panoramas
+    vinylGroup.add(klaatuMesh);
+
+    let deathfameMesh = createVinylMesh(deathfameURL, 6);       // Deathfame
+    vinylGroup.add(deathfameMesh);
+
+    let joyMesh = createVinylMesh(joyURL, 0);                  // JOY
+    vinylGroup.add(joyMesh);
+
+    // Se agregan los viniles al grupo general
+    group.add(vinylGroup);
+
+    // Raycasting
+    document.addEventListener('pointermove', onDocumentPointerMove);
 
 
 
